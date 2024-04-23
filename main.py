@@ -2,7 +2,7 @@ import math
 from random import random
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import uniform, expon, norm, chi2, kstest
+from scipy.stats import chi2, ksone
 
 
 def uniforme(a, b):
@@ -14,8 +14,10 @@ def exponencial(xlambda):
 
 
 def normal(media, desviacion):
-    x1 = uniforme(0, 1)
-    x2 = uniforme(0, 1)
+    x1=x2=0
+    while x1 == 0 or x2 == 0:
+        x1 = uniforme(0, 1)
+        x2 = uniforme(0, 1)
     z1 = (math.sqrt(-2 * np.log(x1)) * math.cos(2 * math.pi * x2)) * desviacion + media
     z2 = (math.sqrt(-2 * np.log(x1)) * math.sin(2 * math.pi * x2)) * desviacion + media
     return round(z1, 4), round(z2, 4)
@@ -48,54 +50,124 @@ def menu():
     return print(cad)
 
 
-def pruebaChiCuadrado(datos, intervalos, opcion, min, max, *parametros):
+def pruebasDeBondad(datos, intervalos, opcion, min, max, *parametros):
     chi2_calc = 0
     chi_tabulado = chi2.ppf(0.9 / 2, intervalos - len(parametros) - 1)
+    ks_calc = ks_max = 0
     n = len(datos)
     frec_observadas, bins = np.histogram(datos, bins=intervalos)
+    nivel_confianza = 0.9
+    # Factor de correcion p/ que coincida con tabla
+    ks_tabulado = ksone.ppf(nivel_confianza + 0.05, n)
+    prob_observada_AC = prob_esperada_AC= 0
 
     if opcion == 1:
-
-        frec_esperadas = n / intervalos
+        frecuencia_esperada = n / intervalos
+        prob_esperada = frecuencia_esperada / n
+        frec_men_5 = frec_obs_ac = 0
         for i in range(intervalos):
-            chi2_calc += ((frec_observadas[i] - frec_esperadas) ** 2) / frec_esperadas
+            frec_obs_ac += frec_observadas[i]
+            frec_men_5 += frecuencia_esperada
+            prob_observada_AC += frec_observadas[i] / n
+            prob_esperada_AC += frecuencia_esperada / n
+
+            if frec_men_5 < 5:
+                continue
+
+            #Chi2
+            chi2_calc += ((frec_obs_ac - frec_men_5) ** 2) / frec_men_5
+
+            #KS
+            ks_calc = abs(prob_observada_AC - prob_esperada_AC)
+            if ks_calc > ks_max:
+                ks_max = ks_calc
+
+            if i == (intervalos - 1) and frec_men_5 < 5:
+                chi2_incompleto = ((frec_obs_ac - frec_men_5) ** 2) / frec_men_5
+                chi2_calc += chi2_incompleto
+
+            frec_men_5 = frec_obs_ac = 0
 
     elif opcion == 2:
         amplitud = (max - min) / intervalos
         desde = min
         hasta = desde + amplitud
+        frec_men_5 = frec_obs_ac = 0
         for i in range(intervalos):
-            frecuencia_intervalo = (1 - math.exp(-parametros[0] * hasta)) - (1 - math.exp(-parametros[0] * desde))
-            frecuencia_esperada = frecuencia_intervalo * n
+            frec_obs_ac += frec_observadas[i]
+            frecuencia_esperada = ((1 - math.exp(-parametros[0] * hasta)) - (1 - math.exp(-parametros[0] * desde))) * n
+            frec_men_5 += frecuencia_esperada
+            prob_observada_AC += frec_observadas[i] / n
+            prob_esperada_AC += frecuencia_esperada / n
+
+            if frec_men_5 < 5:
+                continue
+            #Chi2
+            chi2_calc += ((frec_obs_ac - frec_men_5) ** 2) / frec_men_5
+
+            #KS
+            ks_calc = abs(prob_observada_AC - prob_esperada_AC)
+            if ks_calc > ks_max:
+                ks_max = ks_calc
+
+            if i == (intervalos - 1) and frec_men_5 < 5:
+                chi2_incompleto = ((frec_obs_ac - frec_men_5) ** 2) / frec_men_5
+                chi2_calc += chi2_incompleto
+
+            frec_men_5 = frec_obs_ac = 0
             desde = hasta
             hasta += amplitud
-            chi2_calc += ((frec_observadas[i] - frecuencia_esperada) ** 2) / frecuencia_esperada
 
     elif opcion == 3:
         amplitud = (max - min) / intervalos
         desde = min
         hasta = desde + amplitud
+        frec_men_5 = frec_obs_ac = 0
         for i in range(intervalos):
+            frec_obs_ac += frec_observadas[i]
             marca = (desde + hasta) / 2
-            frecuencia_intervalo = ((math.exp(-0.5 * (((marca - parametros[0]) / parametros[1]) ** 2))) / (
-                        parametros[1] * math.sqrt(2 * math.pi))) * (hasta - desde)
-            frecuencia_esperada = frecuencia_intervalo * n
+            frecuencia_esperada = ((math.exp(-0.5 * (((marca - parametros[0]) / parametros[1]) ** 2))) / (
+                        parametros[1] * math.sqrt(2 * math.pi))) * (hasta - desde) * n
+            frec_men_5 += frecuencia_esperada
+            prob_observada_AC += frec_observadas[i] / n
+            prob_esperada_AC += frecuencia_esperada / n
+
+            if frec_men_5 < 5:
+                continue
+
+            #Chi2
+            chi2_calc += ((frec_obs_ac - frec_men_5) ** 2) / frec_men_5
+
+            #KS
+            ks_calc = abs(prob_observada_AC - prob_esperada_AC)
+            if ks_calc > ks_max:
+                ks_max = ks_calc
+
             desde = hasta
             hasta += amplitud
-            chi2_calc += ((frec_observadas[i] - frecuencia_esperada) ** 2) / frecuencia_esperada
 
     if chi2_calc <= chi_tabulado:
+        print()
         print("Chi calculado < Chi tabulado")
-        print(round(chi2_calc, 4), "<", chi_tabulado)
+        print(round(chi2_calc, 4), "<", round(chi_tabulado, 4))
         print("Se acepta la hipótesis nula H0")
+
     else:
+        print()
         print("Chi calculado > Chi tabulado")
-        print(chi2_calc, ">", chi_tabulado)
+        print(round(chi2_calc, 4), ">", round(chi_tabulado, 4))
         print("No se acepta la hipótesis nula H0")
 
-
-def pruebaKS():
-    pass
+    if ks_max <= ks_tabulado:
+        print()
+        print("KS calculado < KS tabulado")
+        print(round(ks_max, 4), "<", round(ks_tabulado, 4))
+        print("Se acepta la hipótesis nula H0")
+    else:
+        print()
+        print("KS calculado > KS tabulado")
+        print(round(ks_max, 4), ">", round(ks_tabulado, 4))
+        print("No se acepta la hipótesis nula H0")
 
 
 if __name__ == '__main__':
@@ -134,7 +206,7 @@ if __name__ == '__main__':
             for i in range(n):
                 dato = exponencial(xlambda)
                 datos.append((dato))
-                print(dato, end=",")
+                #print(dato, end=",")
                 if i == 0:
                     min = datos[0]
                     max = datos[0]
@@ -168,5 +240,5 @@ if __name__ == '__main__':
                     max = dato1
         print()
         graficar(datos, intervalos)
-        pruebaChiCuadrado(datos, intervalos, opcion, min, max, *parametros)
-        pruebaKS()
+        print("PRUEBAS DE BONDAD")
+        pruebasDeBondad(datos, intervalos, opcion, min, max, *parametros)
