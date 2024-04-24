@@ -63,7 +63,6 @@ def pruebasDeBondad(datos, intervalos, opcion, min, max, *parametros):
 
     if opcion == 1:
         frecuencia_esperada = n / intervalos
-        prob_esperada = frecuencia_esperada / n
         frec_men_5 = frec_obs_ac = 0
         for i in range(intervalos):
             frec_obs_ac += frec_observadas[i]
@@ -206,7 +205,7 @@ if __name__ == '__main__':
             for i in range(n):
                 dato = exponencial(xlambda)
                 datos.append((dato))
-                #print(dato, end=",")
+                print(dato, end=",")
                 if i == 0:
                     min = datos[0]
                     max = datos[0]
